@@ -88,8 +88,26 @@ tmux_fpp_start() {
   # Otherwise, it's cleaned up in the "run" invocation after piping to fpp.
   trap 'rm -f "${tmpfile}"' ERR RETURN
 
-  # Save the pane contents to the temporary file.
-  tmux capture-pane -Jp > "${tmpfile}"
+  # Initialize 'exec_cmd'
+  exec_cmd=""
+  working_dir="${2}"
+  fpp_args="${3}"
+
+  # Hack to ensure we're in the right directory
+  cd "${working_dir}"
+
+  case "${mode}" in
+    exec)
+      data_cmd="${4}"
+      exec_cmd="${5}"
+      # Execute the command to generate the input data for FPP
+      ${data_cmd} > "${tmpfile}"
+      ;;
+    *)
+      # Save the pane contents to the temporary file.
+      tmux capture-pane -Jp > "${tmpfile}"
+      ;;
+  esac
 
   # Create a new window, running the "tmux_fpp_internal_run" function.
   # It will run fpp and clean up the temp file.
@@ -98,7 +116,7 @@ tmux_fpp_start() {
       -n fpp \
       -c '#{pane_current_path}' \
       "${BASH_SOURCE[0]}" internal_run \
-      "${mode}" "${target_pane_id}" "${tmpfile}" "${fpp_path}" \
+      "${mode}" "${target_pane_id}" "${tmpfile}" "${fpp_path}" "${exec_cmd}" "${fpp_args}" \
       ;
 
   # If we made it here, the new window (tmux_fpp_internal_run) will handle cleanup.
@@ -107,11 +125,13 @@ tmux_fpp_start() {
 
 # Execute FPP and clean up the temporary buffer contents file.
 tmux_fpp_internal_run() {
-  local mode target_pane_id tmpfile
+  local mode target_pane_id tmpfile exec_cmd no_file_check
   mode="${1}"
   target_pane_id="${2}"
   tmpfile="${3}"
   fpp_path="${4}"
+  exec_cmd="${5}"
+  fpp_args="${6}"
 
   # Clean up the temp file at the end, no matter what.
   trap 'rm -f "${tmpfile}"' ERR RETURN
@@ -119,11 +139,21 @@ tmux_fpp_internal_run() {
   # Construct the command arguments for running fpp.
   local fpp_cmd
   fpp_cmd=($fpp_path)
+
+  # Skip file check if asked
+  if [ ! -z "${fpp_args}" ] ; then
+    fpp_cmd+=(${fpp_args})
+  fi
+
   case "${mode}" in
     paste)
       # In 'paste' mode, we execute tmux_fpp_finish_paste with the file list.
       # This pastes the selected file list into the original pane.
       fpp_cmd+=(-c "${BASH_SOURCE[0]}" internal_finish_paste "${target_pane_id}")
+      ;;
+    exec)
+      # In 'exec' mode, run the provided command with the output
+      fpp_cmd+=(-c "${exec_cmd}")
       ;;
     edit|*)
       # In 'edit' mode, just let fpp do what it would normally do

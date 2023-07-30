@@ -67,6 +67,24 @@ bind-key f run-shell '~/.tmux/plugins/tmux-fpp start edit'
 bind-key x run-shell '~/.tmux/plugins/tmux-fpp start paste'
 ```
 
+The exec mode requires a few extra parameters and must be manually configured.
+Arg 1: The path to run the data_cmd in
+Arg 2: Extra arguments to FPP
+Arg 3: The `data_cmd`, the command to run to generate data to pass into FPP
+Arg 4: The `exec_cmd`, the command that FPP executes with the selected data
+
+
+An example configuration for `git add`ing files that have been modified:
+```sh
+
+# Disable default binding
+set -g @fpp-bind off
+
+bind-key g run-shell "${TMUX_PLUGIN_MANAGER_PATH}/tmux-fpp/fpp.tmux start exec #{pane_current_path} '-nfc' 'git status' 'git add'"
+```
+
+
+
 > How can I specify custom path to fpp?
 
 Put `set -g @fpp-path '~/my/path/fpp'` in `tmux.conf`.
